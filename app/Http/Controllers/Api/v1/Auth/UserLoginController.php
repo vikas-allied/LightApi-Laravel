@@ -12,12 +12,14 @@ use App\Enums\TokenAbility;
 
 class UserLoginController extends Controller
 {
-    public function login(LoginRequest $request) {
+    public function login(LoginRequest $request)
+    {
 
-        try{
+        try
+        {
 
-            if (!Auth::attempt($request->only('email', 'password'))) {
-
+            if (!Auth::attempt($request->only('email', 'password')))
+            {
                 $error = trans('errors.invalid_credentials');
 
                 return sendError($error['message'], [], $error['status_code']);
@@ -25,9 +27,9 @@ class UserLoginController extends Controller
 
             return new UserResource(\auth()->user());
 
-        }catch(\Exception $e) {
-
-            \Log::info($e->getMessage());
+        }
+        catch(\Exception $e)
+        {
 
             $error = trans('errors.server_error');
 
@@ -39,20 +41,24 @@ class UserLoginController extends Controller
 
     public function logout(Request $request)
     {
-        try {
+        try
+        {
             // Get the currently authenticated user
             $user = $request->user();
 
-            if ($user) {
+            if ($user)
+            {
                 // Delete the current access token
                 $user->currentAccessToken()->delete();
             }
 
             return sendResponse('Logout Successful');
-        } catch (\Exception $e) {
-            \Log::error('Logout Error: ' . $e->getMessage());
 
+        }
+        catch (\Exception $e)
+        {
             $error = trans('errors.server_error');
+
             return sendError($error['message'], [], $error['status_code']);
         }
     }
@@ -61,6 +67,7 @@ class UserLoginController extends Controller
     public function refreshToken(Request $request)
     {
         $accessToken = $request->user()->createToken('access_token', [TokenAbility::ACCESS_API->value], Carbon::now()->addMinutes(config('sanctum.ac_expiration')));
+
         return response(['message' => "Token généré", 'token' => $accessToken->plainTextToken]);
     }
 

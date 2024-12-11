@@ -15,8 +15,8 @@ class UserRegistrationController extends Controller
     public function register(RegisterRequest $request)
     {
 
-        try {
-
+        try
+        {
             $user = User::create([
                 'name'     => $request['name'],
                 'email'    => $request['email'],
@@ -26,16 +26,15 @@ class UserRegistrationController extends Controller
             // assign a role (default one)
             $user_role = Role::where(['name' => config('roles.default_user_role')])->first();
 
-            if ($user_role) {
+            if ($user_role)
+            {
                 $user->assignRole($user_role);
             }
 
             return new UserResource($user);
 
-        }catch(\Exception $e) {
-
-            \Log::info($e->getMessage());
-
+        }catch(\Exception $e)
+        {
             return sendError('Something went wrong', [], 500);
         }
     }

@@ -16,8 +16,13 @@ class BindingServiceProvider extends ServiceProvider
     {
 
         $this->app->bind(
-            'App\Services\Service\RoleService',
-            'App\Services\Impl\RoleServiceImpl'
+            'App\Services\v1\Service\RoleService',
+            'App\Services\v1\Impl\RoleServiceImpl'
+        );
+
+        $this->app->bind(
+            'App\Services\v1\Service\UserService',
+            'App\Services\v1\Impl\UserServiceImpl'
         );
 
     }

@@ -3,22 +3,23 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\v1\UserResource;
-use App\Models\User;
-use App\Services\Service\RoleService;
+use App\Services\v1\Service\RoleService;
+use App\Services\v1\Service\UserService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controllers\Middleware;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
-use Spatie\Permission\Models\Role;
 use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller implements HasMiddleware
 {
 
-    protected function __construct(RoleService $roleService)
+    protected $roleService, $userService;
+
+    public function __construct(RoleService $roleService, UserService $userService)
     {
+        $this->roleService = $roleService;
+        $this->userService = $userService;
     }
 
 
@@ -40,19 +41,15 @@ class UserController extends Controller implements HasMiddleware
      */
     public function index()
     {
-        try {
-
-
-            $users = User::with('roles:name')->select('id', 'name', 'email')->where('name', '!=', 'Super Admin User')->get();
-
-            //return response()->json([ 'data' => $users]);
+        try
+        {
+            $users = $this->userService->getAllUsers();
 
             return sendResponse('User List', $users->toArray());
 
-        }catch (\Exception $e)
+        }
+        catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
-
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -64,20 +61,15 @@ class UserController extends Controller implements HasMiddleware
      */
     public function create()
     {
-        try {
+        try
+        {
+            $roles = $this->roleService->getAllRoles();
 
-            $roles = Role::select('id', 'name')->orderBy('name', 'ASC')->get();
+            return sendResponse('Create User Form', ['roles' => $roles]);
 
-            $data = [
-                'roles' => $roles,
-            ];
-
-            return sendResponse('Create User Form', $data);
-
-        }catch (\Exception $e) {
-
-            \Log::info($e->getMessage());
-
+        }
+        catch (\Exception $e)
+        {
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -89,8 +81,8 @@ class UserController extends Controller implements HasMiddleware
      */
     public function store(Request $request)
     {
-        try {
-
+        try
+        {
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|min:2|max:255',
                 'email' => 'required|email|max:255|unique:users,email',
@@ -100,8 +92,8 @@ class UserController extends Controller implements HasMiddleware
                 'roles.*' => 'exists:roles,name',   // Ensure each role exists in the roles table
             ]);
 
-            if ($validator->fails()) {
-
+            if ($validator->fails())
+            {
                 $error = trans('errors.validation_error');
 
                 return sendError($error['message'], $validator->errors()->toArray(), $error['status_code']);
@@ -109,20 +101,16 @@ class UserController extends Controller implements HasMiddleware
 
             $data = $validator->validated();
 
-            $user = User::create([
-               'name'      => $data['name'],
-               'email'     => $data['email'],
-               'password'  => Hash::make($data['password']),
-            ]);
+            $user = $this->userService->addUser($data);
 
-            $user->syncRoles($data['roles']);
+            if ($user)
+            {
+                return sendResponse('User is created successfully', $user->toArray());
+            }
 
-            return sendResponse('User is created successfully', $user->toArray());
-
-        }catch (\Exception $e)
+        }
+        catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
-
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -134,35 +122,26 @@ class UserController extends Controller implements HasMiddleware
      */
     public function show(string $id)
     {
-        try {
-
-            $user = User::findOrFail($id);
+        try
+        {
+            $user = $this->userService->getUserById($id);
 
             $hasRoles = $user->roles()->pluck('name');
 
-            $data = [
-                'user'      => $user,
-                'hasRoles'  => $hasRoles
-            ];
-
-            return sendResponse('User Data', $data);
+            return sendResponse('User Data', ['user' => $user, 'hasRoles'  => $hasRoles]);
 
         }
 
-        catch(ModelNotFoundException $modelNotFoundException) {
-
-            \Log::info($modelNotFoundException->getMessage());
-
+        catch(ModelNotFoundException $modelNotFoundException)
+        {
             $error = trans('errors.user_not_found');
 
             return sendError($error['message'], [], $error['status_code']);
         }
 
 
-        catch (\Exception $e) {
-
-            \Log::info($e->getMessage());
-
+        catch (\Exception $e)
+        {
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -174,42 +153,37 @@ class UserController extends Controller implements HasMiddleware
      */
     public function edit(string $id)
     {
-        try {
+        try
+        {
+            $user = $this->userService->getUserById($id);
 
-                $user = User::findOrFail($id);
+            $roles = $this->roleService->getAllRoles();
 
-                $roles = Role::select('id', 'name')->orderBy('name', 'ASC')->get();
+            $hasRoles = $user->roles()->pluck('name');
 
-                $hasRoles = $user->roles()->pluck('name');
+            $data = [
+                'user'      => $user,
+                'roles'     => $roles,
+                'hasRoles'  => $hasRoles
+            ];
 
-                $data = [
-                    'user'      => $user,
-                    'roles'     => $roles,
-                    'hasRoles'  => $hasRoles
-                ];
+            return sendResponse('Edit User Form', $data);
 
-                return sendResponse('Edit User Form', $data);
+        }
 
-            }
+        catch(ModelNotFoundException $modelNotFoundException)
+        {
+            $error = trans('errors.user_not_found');
 
-            catch(ModelNotFoundException $modelNotFoundException) {
+            return sendError($error['message'], [], $error['status_code']);
+        }
 
-                \Log::info($modelNotFoundException->getMessage());
+        catch (\Exception $e)
+        {
+            $error = trans('errors.server_error');
 
-                $error = trans('errors.user_not_found');
-
-                return sendError($error['message'], [], $error['status_code']);
-            }
-
-
-            catch (\Exception $e) {
-
-                \Log::info($e->getMessage());
-
-                $error = trans('errors.server_error');
-
-                return sendError($error['message'], [], $error['status_code']);
-            }
+            return sendError($error['message'], [], $error['status_code']);
+        }
 
     }
 
@@ -218,7 +192,8 @@ class UserController extends Controller implements HasMiddleware
      */
     public function update(Request $request, string $id)
     {
-        try {
+        try
+        {
 
             $validator = Validator::make($request->all(), [
                 'name' => 'nullable|string|min:2|max:255',
@@ -229,8 +204,8 @@ class UserController extends Controller implements HasMiddleware
                 'roles.*' => 'exists:roles,name',   // Ensure each role exists in the roles table
             ]);
 
-            if ($validator->fails()) {
-
+            if ($validator->fails())
+            {
                 $error = trans('errors.validation_error');
 
                 return sendError($error['message'], $validator->errors()->toArray(), $error['status_code']);
@@ -238,24 +213,22 @@ class UserController extends Controller implements HasMiddleware
 
             $data = $validator->validated();
 
-            if ($data['password'] == null) {
+            if ($data['password'] == null)
+            {
                 unset($data['password'], $data['confirm_password']);
             }
 
-            $user = User::findOrFail($id);
+            $updatedUser = $this->userService->updateUser($id, $data);
 
-            $user->update($data);
-
-            $user->syncRoles($data['roles']);
-
-            return sendResponse('User is updated successfully', $user->toArray());
+            if ($updatedUser)
+            {
+                return sendResponse('User is updated successfully', $updatedUser->toArray());
+            }
 
         }
 
-        catch(ModelNotFoundException $modelNotFoundException) {
-
-            \Log::info($modelNotFoundException->getMessage());
-
+        catch(ModelNotFoundException $modelNotFoundException)
+        {
             $error = trans('errors.user_not_found');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -263,8 +236,6 @@ class UserController extends Controller implements HasMiddleware
 
         catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
-
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -276,20 +247,20 @@ class UserController extends Controller implements HasMiddleware
      */
     public function destroy(string $id)
     {
-        try {
+        try
+        {
 
-            $user = User::findOrFail($id);
+            $result = $this->userService->deleteUser($id);
 
-            $user->delete();
-
-            return sendResponse('User is deleted successfully');
+            if ($result)
+            {
+                return sendResponse('User is deleted successfully');
+            }
 
         }
 
-        catch(ModelNotFoundException $modelNotFoundException) {
-
-            \Log::info($modelNotFoundException->getMessage());
-
+        catch(ModelNotFoundException $modelNotFoundException)
+        {
             $error = trans('errors.user_not_found');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -297,8 +268,6 @@ class UserController extends Controller implements HasMiddleware
 
         catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
-
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);

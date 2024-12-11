@@ -47,4 +47,37 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+
+    public function getAllUsers($with = false)
+    {
+        $query = $this->select('id', 'name', 'email')
+            ->where('name', '!=', 'Super Admin User');
+
+        if ($with) {
+            $query->with('roles:name');
+        }
+
+        return $query->get();
+    }
+
+    public function addUser($user)
+    {
+        return $this->create($user);
+    }
+
+    public function getUserById($id)
+    {
+        return $this->findOrFail($id);
+    }
+
+    public function updateUser($user, $newUser)
+    {
+        return $user->update($newUser);
+    }
+
+    public function deleteUser($id)
+    {
+        return $this->where('id', $id)/*->first()?*/->delete();
+    }
 }

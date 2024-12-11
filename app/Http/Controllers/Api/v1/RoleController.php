@@ -3,14 +3,13 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
-use App\Services\Service\RoleService;
+use App\Services\v1\Service\RoleService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Validator;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller implements HasMiddleware
 {
@@ -47,8 +46,6 @@ class RoleController extends Controller implements HasMiddleware
 
         }catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
-
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -60,18 +57,17 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function create()
     {
-        try {
-
+        try
+        {
             $permissions = Permission::select('id', 'name')->orderBy('name', 'ASC')->get();
 
             $data = ['permissions' => $permissions];
 
             return sendResponse('Create Role Form', $data);
 
-        }catch (\Exception $e)
+        }
+        catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
-
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -83,7 +79,8 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function store(Request $request)
     {
-        try {
+        try
+        {
 
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|min:2|max:255',
@@ -91,8 +88,8 @@ class RoleController extends Controller implements HasMiddleware
                 'permissions.*' => 'exists:permissions,name',   // Ensure each permission exists in the permissions table
             ]);
 
-            if ($validator->fails()) {
-
+            if ($validator->fails())
+            {
                 $error = trans('errors.validation_error');
 
                 return sendError($error['message'], $validator->errors()->toArray(), $error['status_code']);
@@ -100,26 +97,13 @@ class RoleController extends Controller implements HasMiddleware
 
             $data = $validator->validated();
 
-            /*$role = Role::create([
-                'name' => $data['name'],
-                'guard_name' => 'web'
-            ]);
-
-            $role->syncPermissions($data['permissions']);*/
-
-            $role = [
-                'name' => $data['name'],
-                'guard_name' => 'web'
-            ];
-
-            $role = $this->roleService->addRole($role, $data['permissions']);
+            $role = $this->roleService->addRole($data);
 
             return sendResponse('Role is created successfully', $role->toArray());
 
-        }catch (\Exception $e)
+        }
+        catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
-
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -131,9 +115,10 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function show(string $id)
     {
-        try {
+        try
+        {
 
-            $role = Role::findOrFail($id);
+            $role = $this->roleService->getRoleByRoleId($id);
 
             $roleHasPermissions = $role->permissions->pluck('name');
 
@@ -143,10 +128,8 @@ class RoleController extends Controller implements HasMiddleware
 
         }
 
-        catch(ModelNotFoundException $modelNotFoundException) {
-
-            \Log::info($modelNotFoundException->getMessage());
-
+        catch(ModelNotFoundException $modelNotFoundException)
+        {
             $error = trans('errors.role_not_found');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -154,8 +137,6 @@ class RoleController extends Controller implements HasMiddleware
 
         catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
-
             $error = trans('errors.server_error');
 
             return sendError($error['message'], [], $error['status_code']);
@@ -167,37 +148,43 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function edit(string $id)
     {
-        try {
+        try
+        {
+            $permissions = Permission::select('id', 'name')->orderBy('name', 'ASC')->get();
 
-                $permissions = Permission::select('id', 'name')->orderBy('name', 'ASC')->get();
+            $role = $this->roleService->getRoleByRoleId($id);
 
-                $role = Role::findOrFail($id);
+            $roleHasPermissions = $role->permissions->pluck('name');
 
-                $roleHasPermissions = $role->permissions->pluck('name');
+            $data = ['role' => $role, 'permissions' => $permissions, 'role_has_permissions' => $roleHasPermissions];
 
-                $data = ['role' => $role, 'permissions' => $permissions, 'role_has_permissions' => $roleHasPermissions];
+            return sendResponse('Edit Role Form', $data);
 
-                return sendResponse('Edit Role Form', $data);
+        }
 
-            }
+        catch(ModelNotFoundException $modelNotFoundException)
+        {
+            $error = trans('errors.role_not_found');
 
-            catch(ModelNotFoundException $modelNotFoundException) {
+            return sendError($error['message'], [], $error['status_code']);
+        }
 
-                \Log::info($modelNotFoundException->getMessage());
+        catch (\Exception $e)
+        {
+            $error = trans('errors.server_error');
+
+            /*if ($e instanceof ModelNotFoundException) {
+
+                Log::info($e->getMessage());
 
                 $error = trans('errors.role_not_found');
 
                 return sendError($error['message'], [], $error['status_code']);
-            }
 
-            catch (\Exception $e)
-            {
-                \Log::info($e->getMessage());
+            }*/
 
-                $error = trans('errors.server_error');
-
-                return sendError($error['message'], [], $error['status_code']);
-            }
+            return sendError($error['message'], [], $error['status_code']);
+        }
     }
 
     /**
@@ -205,7 +192,8 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function update(Request $request, string $id)
     {
-        try {
+        try
+        {
 
             $validator = Validator::make($request->all(), [
                 'name' => 'nullable|string|min:2|max:255',
@@ -213,43 +201,38 @@ class RoleController extends Controller implements HasMiddleware
                 'permissions.*' => 'exists:permissions,name',   // Ensure each permission exists in the permissions table
             ]);
 
-            if ($validator->fails()) {
+            if ($validator->fails())
+            {
 
                 $error = trans('errors.validation_error');
 
                 return sendError($error['message'], $validator->errors()->toArray(), $error['status_code']);
             }
 
-                $data = $validator->validated();
+            $data = $validator->validated();
 
+            $role = $this->roleService->updateRole($id, $data);
 
-                $role = Role::findOrFail($id);
-
-                $role->update($data);
-
-                $role->syncPermissions($data['permissions']);
-
-                return sendResponse('Role is updated successfully', $role->toArray());
-
-            }
-
-            catch (ModelNotFoundException $modelNotFoundException) {
-
-                \Log::info($modelNotFoundException->getMessage());
-
-                $error = trans('errors.role_not_found');
-
-                return sendError($error['message'], [], $error['status_code']);
-            }
-
-            catch (\Exception $e)
+            if ($role)
             {
-                \Log::info($e->getMessage());
-
-                $error = trans('errors.server_error');
-
-                return sendError($error['message'], [], $error['status_code']);
+                return sendResponse('Role is updated successfully', $role->toArray());
             }
+
+        }
+
+        catch (ModelNotFoundException $modelNotFoundException)
+        {
+            $error = trans('errors.role_not_found');
+
+            return sendError($error['message'], [], $error['status_code']);
+        }
+
+        catch (\Exception $e)
+        {
+            $error = trans('errors.server_error');
+
+            return sendError($error['message'], [], $error['status_code']);
+        }
     }
 
     /**
@@ -257,37 +240,34 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function destroy(string $id)
     {
-            try {
+        try
+        {
+            $result = $this->roleService->deleteRole($id);
 
-                $role = Role::findOrFail($id);
-
-                $count = $role->users()->count();
-
-                if ($count > 0) {
-
-                    return sendError('There are users associated with the given role', [], 500);
-
-                }
-
-                $role->delete();
-
-                return sendResponse('Role is successfully Deleted');
-
-            }catch(ModelNotFoundException $modelNotFoundException) {
-
-                \Log::info($modelNotFoundException->getMessage());
-
-                $error = trans('errors.role_not_found');
-
-                return sendError($error['message'], [], $error['status_code']);
-            }catch (\Exception $e)
+            if ($result == 2)
             {
-                \Log::info($e->getMessage());
-
-                $error = trans('errors.server_error');
-
-                return sendError($error['message'], [], $error['status_code']);
+                return sendError('There are users associated with the given role', [], 500);
             }
+
+            if ($result == 1)
+            {
+                return sendResponse('Role is successfully Deleted');
+            }
+
+
+        }
+        catch(ModelNotFoundException $modelNotFoundException)
+        {
+            $error = trans('errors.role_not_found');
+
+            return sendError($error['message'], [], $error['status_code']);
+        }
+        catch (\Exception $e)
+        {
+            $error = trans('errors.server_error');
+
+            return sendError($error['message'], [], $error['status_code']);
+        }
 
     }
 

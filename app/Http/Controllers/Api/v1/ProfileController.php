@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class ProfileController extends Controller
@@ -44,7 +45,7 @@ class ProfileController extends Controller
 
         catch(ModelNotFoundException $modelNotFoundException) {
 
-            \Log::info($modelNotFoundException->getMessage());
+            Log::info($modelNotFoundException->getMessage());
 
             $error = trans('errors.user_not_found');
 
@@ -53,7 +54,7 @@ class ProfileController extends Controller
 
         catch (\Exception $e)
         {
-            \Log::info($e->getMessage());
+            Log::info($e->getMessage());
 
             $error = trans('errors.server_error');
 
