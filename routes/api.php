@@ -29,30 +29,36 @@ Route::get('/health-check', function () {
         'success' => true
     ]);
 });*/
-Route::post('/register', [UserRegistrationController::class, 'register'])->name('auth.register');
 
-Route::post('/login', [UserLoginController::class, 'login'])->name('auth.login');
+Route::group(['prefix' => 'v1'], function (){
 
-Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/register', [UserRegistrationController::class, 'register'])->name('auth.register');
 
-    Route::post('/logout', [UserLoginController::class, 'logout']);
+    Route::post('/login', [UserLoginController::class, 'login'])->name('auth.login');
 
-    Route::resources([
+    Route::middleware('auth:sanctum')->group(function () {
 
-        'users' => UserController::class,
+        Route::post('/logout', [UserLoginController::class, 'logout']);
 
-        'roles' => RoleController::class,
+        Route::resources([
 
-    ]);
+            'users' => UserController::class,
 
-    Route::put('/profile/{id}', [ProfileController::class, 'updateProfile'])->name('profile.update');
+            'roles' => RoleController::class,
+
+        ]);
+
+        Route::put('/profile/{id}', [ProfileController::class, 'updateProfile'])->name('profile.update');
+
+    });
+
+
+    Route::middleware('auth:sanctum', 'ability:' . TokenAbility::ISSUE_ACCESS_TOKEN->value)->group(function () {
+        Route::get('/auth/refresh-token', [UserLoginController::class, 'refreshToken']);
+    });
 
 });
 
-
-Route::middleware('auth:sanctum', 'ability:' . TokenAbility::ISSUE_ACCESS_TOKEN->value)->group(function () {
-    Route::get('/auth/refresh-token', [UserLoginController::class, 'refreshToken']);
-});
 
 
 
